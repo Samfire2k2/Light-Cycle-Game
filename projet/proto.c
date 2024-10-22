@@ -101,14 +101,14 @@ int main(int argc, char* args[]) {
         return 1;
     }
 
-    window = SDL_CreateWindow("Snake en SDL2", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+    window = SDL_CreateWindow("Tron", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                               WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
     if (!window) {
         printf("Erreur SDL: %s\n", SDL_GetError());
         return 1;
     }
 
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE );
     if (!renderer) {
         printf("Erreur SDL: %s\n", SDL_GetError());
         SDL_DestroyWindow(window);
