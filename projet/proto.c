@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <SDL2/SDL_image.h>
+
 
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
@@ -20,11 +22,20 @@ typedef struct {
     int direction;           // Direction actuelle (0: droite, 1: haut, 2: gauche, 3: bas)
 } Player;
 
+SDL_Texture* load_texture(const char* file, SDL_Renderer* ren) {
+    SDL_Texture* texture = IMG_LoadTexture(ren, file);
+    if (!texture) {
+        printf("Erreur de chargement de la texture: %s\n", SDL_GetError());
+    }
+    return texture;
+}
+
 Player player;
 int game_over = 0;
 
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
+SDL_Texture* player_texture = NULL;
 
 void init_game() {
     player.length = 2;
@@ -38,6 +49,7 @@ void init_game() {
     // Couleur de fond
     SDL_SetRenderDrawColor(renderer, 54, 67, 95, 255); //RGB pour bleu foncé
     SDL_RenderClear(renderer);
+    player_texture = load_texture("projet/ressources/moto.png", renderer);
 }
 
 void draw_rect(int x, int y, SDL_Color color) {
@@ -46,12 +58,26 @@ void draw_rect(int x, int y, SDL_Color color) {
     SDL_RenderFillRect(renderer, &rect);
 }
 
-void draw_game() {  
-    // Dessine le joueur
-    SDL_Color player_color = {0, 0, 255, 255}; // bleu
-    for (int i = 0; i < player.length; i++) {
-        draw_rect(player.positions[i].x, player.positions[i].y, player_color);
+void draw_texture(SDL_Texture* texture, int x, int y, float angle) {
+    SDL_Rect dst;
+    dst.x = x * GRID_SIZE-(GRID_SIZE/2);
+    dst.y = y * GRID_SIZE-(GRID_SIZE/2);
+    dst.w = GRID_SIZE*2;
+    dst.h = GRID_SIZE*2;
+    SDL_RenderCopyEx(renderer, player_texture, NULL, &dst, angle, NULL, SDL_FLIP_NONE);  // Dessine la texture
+}
+
+void draw_game() {
+    //dessine le fond
+    SDL_SetRenderDrawColor(renderer, 54, 67, 95, 255);
+    SDL_RenderClear(renderer);
+    // Dessine la trace
+    for(int i =2;i<player.length;i++){
+        SDL_Color player_color = {255, 0, 0, 255}; // rouge
+        draw_rect(player.positions[i-1].x, player.positions[i-1].y, player_color);
     }
+    // Dessine le joueur
+    draw_texture(player_texture, player.positions[0].x, player.positions[0].y, (player.direction+1)*90);
 
     SDL_RenderPresent(renderer); // Met à jour l'affichage
 }
@@ -92,6 +118,9 @@ int check_collision() {
 
     return 0;
 }
+
+
+
 
 
 int main(int argc, char* args[]) {
@@ -142,6 +171,10 @@ int main(int argc, char* args[]) {
         if (current_time - last_frame_time >= frame_delay) {
             move_player();
             if (check_collision()) {
+                SDL_Color red_color = {255, 0, 0, 255}; // Couleur rouge pour signaler une collision
+                draw_rect(player.positions[0].x, player.positions[0].y, red_color);
+                SDL_RenderPresent(renderer);
+                SDL_Delay(3000);
                 game_over = 1;
             }
             draw_game();
@@ -149,10 +182,13 @@ int main(int argc, char* args[]) {
         }
     }
 
+
     printf("Game Over! Votre score: %d\n", player.length - 1);
 
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
+    SDL_DestroyTexture(player_texture);
+    IMG_Quit();
     SDL_Quit();
 
     return 0;
