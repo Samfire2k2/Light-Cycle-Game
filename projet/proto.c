@@ -15,7 +15,7 @@ typedef struct {
 } Position;
 
 typedef struct {
-    Position positions[300];  // Positions du joueur (jusqu'à 100 segments)
+    Position positions[1200];  // Positions du joueur (jusqu'à 100 segments)
     int length;              // Longueur actuelle de la trace
     int direction;           // Direction actuelle (0: droite, 1: haut, 2: gauche, 3: bas)
 } Player;
