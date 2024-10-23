@@ -49,7 +49,7 @@ void init_game() {
     // Couleur de fond
     SDL_SetRenderDrawColor(renderer, 54, 67, 95, 255); //RGB pour bleu foncé
     SDL_RenderClear(renderer);
-    player_texture = load_texture("projet/ressources/moto.png", renderer);
+    player_texture = load_texture("../projet/ressources/moto.png", renderer);
 }
 
 void draw_rect(int x, int y, SDL_Color color) {
