@@ -4,7 +4,6 @@
 #include <time.h>
 #include <SDL2/SDL_image.h>
 
-
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
 #define GRID_SIZE 20
@@ -60,24 +59,44 @@ void draw_rect(int x, int y, SDL_Color color) {
 
 void draw_texture(SDL_Texture* texture, int x, int y, float angle) {
     SDL_Rect dst;
-    dst.x = x * GRID_SIZE-(GRID_SIZE/2);
-    dst.y = y * GRID_SIZE-(GRID_SIZE/2);
-    dst.w = GRID_SIZE*2;
-    dst.h = GRID_SIZE*2;
+    dst.x = x * GRID_SIZE - (GRID_SIZE / 2);
+    dst.y = y * GRID_SIZE - (GRID_SIZE / 2);
+    dst.w = GRID_SIZE * 2;
+    dst.h = GRID_SIZE * 2;
     SDL_RenderCopyEx(renderer, player_texture, NULL, &dst, angle, NULL, SDL_FLIP_NONE);  // Dessine la texture
 }
 
-void draw_game() {
-    //dessine le fond
-    SDL_SetRenderDrawColor(renderer, 54, 67, 95, 255);
-    SDL_RenderClear(renderer);
-    // Dessine la trace
-    for(int i =2;i<player.length;i++){
-        SDL_Color player_color = {255, 0, 0, 255}; // rouge
-        draw_rect(player.positions[i-1].x, player.positions[i-1].y, player_color);
+// Nouvelle fonction pour dessiner la grille
+void draw_grid() {
+    SDL_SetRenderDrawColor(renderer, 100, 100, 150, 255);  // Couleur gris clair pour la grille
+
+    // Dessiner les lignes verticales
+    for (int x = 0; x <= WINDOW_WIDTH; x += GRID_SIZE) {
+        SDL_RenderDrawLine(renderer, x, 0, x, WINDOW_HEIGHT);
     }
+
+    // Dessiner les lignes horizontales
+    for (int y = 0; y <= WINDOW_HEIGHT; y += GRID_SIZE) {
+        SDL_RenderDrawLine(renderer, 0, y, WINDOW_WIDTH, y);
+    }
+}
+
+void draw_game() {
+    // Dessine le fond
+    SDL_SetRenderDrawColor(renderer, 54, 67, 95, 255); // Bleu foncé pour le fond
+    SDL_RenderClear(renderer);
+
+    // Dessine la grille par-dessus le fond
+    draw_grid();
+
+    // Dessine la trace
+    for (int i = 2; i < player.length; i++) {
+        SDL_Color player_color = {255, 0, 0, 255}; // Rouge
+        draw_rect(player.positions[i - 1].x, player.positions[i - 1].y, player_color);
+    }
+
     // Dessine le joueur
-    draw_texture(player_texture, player.positions[0].x, player.positions[0].y, (player.direction+1)*90);
+    draw_texture(player_texture, player.positions[0].x, player.positions[0].y, (player.direction + 1) * 90);
 
     SDL_RenderPresent(renderer); // Met à jour l'affichage
 }
@@ -94,7 +113,7 @@ void move_player() {
 
     player.length++;
     for (int i = player.length - 1; i > 0; i--) {
-            player.positions[i] = player.positions[i - 1];
+        player.positions[i] = player.positions[i - 1];
     }
 
     // Met à jour la position du joueur
@@ -118,10 +137,6 @@ int check_collision() {
 
     return 0;
 }
-
-
-
-
 
 int main(int argc, char* args[]) {
     // Initialisation de SDL2
@@ -181,7 +196,6 @@ int main(int argc, char* args[]) {
             last_frame_time = current_time;
         }
     }
-
 
     printf("Game Over! Votre score: %d\n", player.length - 1);
 
