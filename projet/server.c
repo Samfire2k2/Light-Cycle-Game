@@ -6,7 +6,8 @@ Serveur à lancer avant le client
 #include <linux/types.h> 	/* pour les sockets */
 #include <sys/socket.h>
 #include <netdb.h> 		/* pour hostent, servent */
-#include <string.h> 		/* pour bcopy, ... */  
+#include <string.h> 		/* pour bcopy, ... */ 
+#include <unistd.h>         /* pour sleep */ 
 #define TAILLE_MAX_NOM 256
 
 typedef struct sockaddr sockaddr;
@@ -47,7 +48,7 @@ void renvoi (int sock) {
 /*------------------------------------------------------*/
 
 /*------------------------------------------------------*/
-main(int argc, char **argv) {
+int main(int argc, char **argv) {
   
     int 		socket_descriptor, 		/* descripteur de socket */
 			nouv_socket_descriptor, 	/* [nouveau] descripteur de socket */
@@ -61,7 +62,7 @@ main(int argc, char **argv) {
     gethostname(machine,TAILLE_MAX_NOM);		/* recuperation du nom de la machine */
     
     /* recuperation de la structure d'adresse en utilisant le nom */
-    if ((ptr_hote = gethostname(machine)) == NULL) {
+    if ((ptr_hote = gethostbyname(machine)) == NULL) {
 		perror("erreur : impossible de trouver le serveur a partir de son nom.");
 		exit(1);
     }
