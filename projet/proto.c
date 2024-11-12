@@ -1,4 +1,5 @@
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -138,10 +139,94 @@ int check_collision() {
     return 0;
 }
 
+void display_score(int score, SDL_Color color, int x, int y) {
+    char score_text[50];
+    sprintf(score_text, "Score: %d", score);
+
+    TTF_Font* font = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 24);
+    if (!font) {
+        printf("Erreur de chargement de la police: %s\n", TTF_GetError());
+        return;
+    }
+
+    SDL_Surface* surface = TTF_RenderText_Solid(font, score_text, color);
+    if (!surface) {
+        printf("Erreur de création de la surface de texte: %s\n", TTF_GetError());
+        TTF_CloseFont(font);
+        return;
+    }
+
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    if (!texture) {
+        printf("Erreur de création de la texture de texte: %s\n", SDL_GetError());
+        SDL_FreeSurface(surface);
+        TTF_CloseFont(font);
+        return;
+    }
+
+    SDL_Rect dst;
+    dst.x = x;
+    dst.y = y;
+    dst.w = surface->w;
+    dst.h = surface->h;
+
+    SDL_RenderCopy(renderer, texture, NULL, &dst);
+
+    SDL_DestroyTexture(texture);
+    SDL_FreeSurface(surface);
+    TTF_CloseFont(font);
+}
+
+void display_text(const char* text, SDL_Color color, int x, int y) {
+    TTF_Font* font = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48); // Taille de police augmentée
+    if (!font) {
+        printf("Erreur de chargement de la police: %s\n", TTF_GetError());
+        return;
+    }
+
+    SDL_Surface* surface = TTF_RenderText_Solid(font, text, color);
+    if (!surface) {
+        printf("Erreur de création de la surface de texte: %s\n", TTF_GetError());
+        TTF_CloseFont(font);
+        return;
+    }
+
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    if (!texture) {
+        printf("Erreur de création de la texture de texte: %s\n", SDL_GetError());
+        SDL_FreeSurface(surface);
+        TTF_CloseFont(font);
+        return;
+    }
+
+    SDL_Rect dst;
+    dst.x = x;
+    dst.y = y;
+    dst.w = surface->w;
+    dst.h = surface->h;
+
+    // Dessiner un rectangle blanc semi-transparent derrière le texte
+    SDL_Rect background_rect = {x - 10, y - 10, surface->w + 20, surface->h + 20};
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 64); // Blanc avec opacité de 25%
+    SDL_RenderFillRect(renderer, &background_rect);
+
+    SDL_RenderCopy(renderer, texture, NULL, &dst);
+
+    SDL_DestroyTexture(texture);
+    SDL_FreeSurface(surface);
+    TTF_CloseFont(font);
+}
+
 int main(int argc, char* args[]) {
     // Initialisation de SDL2
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         printf("Erreur SDL: %s\n", SDL_GetError());
+        return 1;
+    }
+
+    if (TTF_Init() == -1) {
+        printf("Erreur TTF: %s\n", TTF_GetError());
+        SDL_Quit();
         return 1;
     }
 
@@ -186,13 +271,15 @@ int main(int argc, char* args[]) {
         if (current_time - last_frame_time >= frame_delay) {
             move_player();
             if (check_collision()) {
-                SDL_Color red_color = {255, 0, 0, 255}; // Couleur rouge pour signaler une collision
-                draw_rect(player.positions[0].x, player.positions[0].y, red_color);
-                SDL_RenderPresent(renderer);
-                SDL_Delay(3000);
                 game_over = 1;
+                SDL_Color red = {255, 0, 0, 255};
+                display_text("Game Over!", red, WINDOW_WIDTH / 2 - 120, WINDOW_HEIGHT / 2 - 40); // Ajuster la position pour le texte plus grand
+                SDL_RenderPresent(renderer);
+                // SDL_Delay(3000);  // Pause de 3 secondes avant de quitter
             }
             draw_game();
+            SDL_Color white = {255, 255, 255, 255};
+            display_score(player.length - 1, white, 10, 10); // Afficher le score en haut à gauche
             last_frame_time = current_time;
         }
     }
@@ -202,6 +289,7 @@ int main(int argc, char* args[]) {
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_DestroyTexture(player_texture);
+    TTF_Quit();
     IMG_Quit();
     SDL_Quit();
 
