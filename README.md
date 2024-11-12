@@ -1,3 +1,1 @@
-- mettre score dans interface
-- afficher game over
-- créer une IA ennemie
+
