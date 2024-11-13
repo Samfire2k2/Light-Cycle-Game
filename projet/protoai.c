@@ -31,11 +31,13 @@ SDL_Texture* load_texture(const char* file, SDL_Renderer* ren) {
 }
 
 Player player;
+Player ai;
 int game_over = 0;
 
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 SDL_Texture* player_texture = NULL;
+SDL_Texture* ai_texture = NULL;
 
 void init_game() {
     player.length = 2;
@@ -45,11 +47,19 @@ void init_game() {
         player.positions[i].y = GRID_HEIGHT / 2;
     }
 
+    ai.length = 2;
+    ai.direction = 0; // Direction initiale à droite
+    for (int i = 0; i < ai.length; i++) {
+        ai.positions[i].x = GRID_WIDTH / 2 - i;
+        ai.positions[i].y = GRID_HEIGHT / 2 + 5; // Position initiale différente pour l'IA
+    }
+
     srand(time(0));
     // Couleur de fond
     SDL_SetRenderDrawColor(renderer, 54, 67, 95, 255); //RGB pour bleu foncé
     SDL_RenderClear(renderer);
     player_texture = load_texture("../projet/ressources/motoJ1.png", renderer);
+    ai_texture = load_texture("../projet/ressources/motoJ2.png", renderer);
 }
 
 void draw_rect(int x, int y, SDL_Color color) {
@@ -64,7 +74,7 @@ void draw_texture(SDL_Texture* texture, int x, int y, float angle) {
     dst.y = y * GRID_SIZE - (GRID_SIZE / 2);
     dst.w = GRID_SIZE * 2;
     dst.h = GRID_SIZE * 2;
-    SDL_RenderCopyEx(renderer, player_texture, NULL, &dst, angle, NULL, SDL_FLIP_NONE);  // Dessine la texture
+    SDL_RenderCopyEx(renderer, texture, NULL, &dst, angle, NULL, SDL_FLIP_NONE);  // Dessine la texture
 }
 
 // Nouvelle fonction pour dessiner la grille
@@ -90,48 +100,91 @@ void draw_game() {
     // Dessine la grille par-dessus le fond
     draw_grid();
 
-    // Dessine la trace
+    // Dessine la trace du joueur
     for (int i = 2; i < player.length; i++) {
         SDL_Color player_color = {255, 0, 0, 255}; // Rouge
         draw_rect(player.positions[i - 1].x, player.positions[i - 1].y, player_color);
     }
 
+    // Dessine la trace de l'IA
+    for (int i = 2; i < ai.length; i++) {
+        SDL_Color ai_color = {0, 0, 255, 255}; // Bleu
+        draw_rect(ai.positions[i - 1].x, ai.positions[i - 1].y, ai_color);
+    }
+
     // Dessine le joueur
     draw_texture(player_texture, player.positions[0].x, player.positions[0].y, (player.direction + 1) * 90);
+
+    // Dessine l'IA
+    draw_texture(ai_texture, ai.positions[0].x, ai.positions[0].y, (ai.direction + 1) * 90);
 
     SDL_RenderPresent(renderer); // Met à jour l'affichage
 }
 
-void move_player() {
-    Position next_position = player.positions[0];
+void move_player(Player* p) {
+    Position next_position = p->positions[0];
 
-    switch (player.direction) {
+    switch (p->direction) {
         case 0: next_position.x++; break; // Droite
         case 1: next_position.y--; break; // Haut
         case 2: next_position.x--; break; // Gauche
         case 3: next_position.y++; break; // Bas
     }
 
-    player.length++;
-    for (int i = player.length - 1; i > 0; i--) {
-        player.positions[i] = player.positions[i - 1];
+    p->length++;
+    for (int i = p->length - 1; i > 0; i--) {
+        p->positions[i] = p->positions[i - 1];
     }
 
     // Met à jour la position du joueur
-    player.positions[0] = next_position;
+    p->positions[0] = next_position;
 }
 
-int check_collision() {
+int check_collision(Player* p) {
     // Collision avec les murs
-    if (player.positions[0].x < 0 || player.positions[0].x >= GRID_WIDTH ||
-        player.positions[0].y < 0 || player.positions[0].y >= GRID_HEIGHT) {
+    if (p->positions[0].x < 0 || p->positions[0].x >= GRID_WIDTH ||
+        p->positions[0].y < 0 || p->positions[0].y >= GRID_HEIGHT) {
         return 1;
     }
 
     // Collision avec soi-même
-    for (int i = 1; i < player.length; i++) {
-        if (player.positions[0].x == player.positions[i].x &&
-            player.positions[0].y == player.positions[i].y) {
+    for (int i = 1; i < p->length; i++) {
+        if (p->positions[0].x == p->positions[i].x &&
+            p->positions[0].y == p->positions[i].y) {
+            return 1;
+        }
+    }
+
+    // Collision avec l'autre joueur
+    for (int i = 0; i < ai.length; i++) {
+        if (p->positions[0].x == ai.positions[i].x &&
+            p->positions[0].y == ai.positions[i].y) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+int check_collision_ai(Player* p) {
+    // Collision avec les murs
+    if (p->positions[0].x < 0 || p->positions[0].x >= GRID_WIDTH ||
+        p->positions[0].y < 0 || p->positions[0].y >= GRID_HEIGHT) {
+        return 1;
+    }
+
+    // Collision avec soi-même
+    for (int i = 1; i < p->length; i++) {
+        if (p->positions[0].x == p->positions[i].x &&
+            p->positions[0].y == p->positions[i].y) {
+            return 1;
+        }
+    }
+
+    // Collision avec l'autre joueur
+    for (int i = 0; i < player.length; i++) {
+        if (p->positions[0].x == player.positions[i].x &&
+            p->positions[0].y == player.positions[i].y) {
             return 1;
         }
     }
@@ -217,6 +270,55 @@ void display_text(const char* text, SDL_Color color, int x, int y) {
     TTF_CloseFont(font);
 }
 
+int is_collision_imminent(Player* p) {
+    Position next_position = p->positions[0];
+
+    switch (p->direction) {
+        case 0: next_position.x++; break; // Droite
+        case 1: next_position.y--; break; // Haut
+        case 2: next_position.x--; break; // Gauche
+        case 3: next_position.y++; break; // Bas
+    }
+
+    // Collision avec les murs
+    if (next_position.x < 0 || next_position.x >= GRID_WIDTH ||
+        next_position.y < 0 || next_position.y >= GRID_HEIGHT) {
+        return 1;
+    }
+
+    // Collision avec soi-même
+    for (int i = 1; i < p->length; i++) {
+        if (next_position.x == p->positions[i].x &&
+            next_position.y == p->positions[i].y) {
+            return 1;
+        }
+    }
+
+    // Collision avec l'autre joueur
+    for (int i = 0; i < player.length; i++) {
+        if (next_position.x == player.positions[i].x &&
+            next_position.y == player.positions[i].y) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+void move_ai() {
+    // IA qui évite les collisions et change de direction de manière autonome
+    if (is_collision_imminent(&ai)) {
+        // Change de direction pour éviter la collision
+        ai.direction = (ai.direction + 1) % 4;
+    } else {
+        // Change de direction aléatoirement
+        if (rand() % 10 == 0) {
+            ai.direction = rand() % 4;
+        }
+    }
+    move_player(&ai);
+}
+
 int main(int argc, char* args[]) {
     // Initialisation de SDL2
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -269,13 +371,18 @@ int main(int argc, char* args[]) {
 
         Uint32 current_time = SDL_GetTicks();
         if (current_time - last_frame_time >= frame_delay) {
-            move_player();
-            if (check_collision()) {
+            move_player(&player);
+            move_ai();
+            if (check_collision(&player)) {
                 game_over = 1;
                 SDL_Color red = {255, 0, 0, 255};
                 display_text("Game Over!", red, WINDOW_WIDTH / 2 - 120, WINDOW_HEIGHT / 2 - 40); // Ajuster la position pour le texte plus grand
                 SDL_RenderPresent(renderer);
-                SDL_Delay(3000);  // Pause de 3 secondes avant de quitter
+            } else if (check_collision_ai(&ai)) {
+                game_over = 1;
+                SDL_Color blue = {0, 0, 255, 255};
+                display_text("Victoire!", blue, WINDOW_WIDTH / 2 - 120, WINDOW_HEIGHT / 2 - 40); // Ajuster la position pour le texte plus grand
+                SDL_RenderPresent(renderer);
             }
             draw_game();
             SDL_Color white = {255, 255, 255, 255};
@@ -289,6 +396,7 @@ int main(int argc, char* args[]) {
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_DestroyTexture(player_texture);
+    SDL_DestroyTexture(ai_texture);
     TTF_Quit();
     IMG_Quit();
     SDL_Quit();
