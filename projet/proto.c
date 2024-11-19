@@ -143,7 +143,7 @@ void display_score(int score, SDL_Color color, int x, int y) {
     char score_text[50];
     sprintf(score_text, "Score: %d", score);
 
-    TTF_Font* font = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 24);
+    TTF_Font* font = TTF_OpenFont("./ressources/Consolas.ttf", 24);
     if (!font) {
         printf("Erreur de chargement de la police: %s\n", TTF_GetError());
         return;
@@ -177,8 +177,8 @@ void display_score(int score, SDL_Color color, int x, int y) {
     TTF_CloseFont(font);
 }
 
-void display_text(const char* text, SDL_Color color, int x, int y) {
-    TTF_Font* font = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48); // Taille de police augmentée
+void display_text(const char* text, SDL_Color color, int x, int y, Uint8 bg_opacity) {
+    TTF_Font* font = TTF_OpenFont("./ressources/Consolas.ttf", 48); // Taille de police augmentée
     if (!font) {
         printf("Erreur de chargement de la police: %s\n", TTF_GetError());
         return;
@@ -207,7 +207,7 @@ void display_text(const char* text, SDL_Color color, int x, int y) {
 
     // Dessiner un rectangle blanc semi-transparent derrière le texte
     SDL_Rect background_rect = {x - 10, y - 10, surface->w + 20, surface->h + 20};
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 64); // Blanc avec opacité de 25%
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, bg_opacity); // Blanc avec opacité personnalisée
     SDL_RenderFillRect(renderer, &background_rect);
 
     SDL_RenderCopy(renderer, texture, NULL, &dst);
@@ -273,7 +273,8 @@ int main(int argc, char* args[]) {
             if (check_collision()) {
                 game_over = 1;
                 SDL_Color red = {255, 0, 0, 255};
-                display_text("Game Over!", red, WINDOW_WIDTH / 2 - 120, WINDOW_HEIGHT / 2 - 40); // Ajuster la position pour le texte plus grand
+
+                display_text("Game Over!", red, WINDOW_WIDTH / 2 - 120, WINDOW_HEIGHT / 2 - 40, 128); // Ajuster la position pour le texte plus grand
                 SDL_RenderPresent(renderer);
                 SDL_Delay(3000);  // Pause de 3 secondes avant de quitter
             }
