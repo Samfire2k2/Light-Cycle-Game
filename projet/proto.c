@@ -64,12 +64,12 @@ void draw_texture(SDL_Texture* texture, int x, int y, float angle) {
     dst.y = y * GRID_SIZE - (GRID_SIZE / 2);
     dst.w = GRID_SIZE * 2;
     dst.h = GRID_SIZE * 2;
-    SDL_RenderCopyEx(renderer, player_texture, NULL, &dst, angle, NULL, SDL_FLIP_NONE);  // Dessine la texture
+    SDL_RenderCopyEx(renderer, player_texture, NULL, &dst, angle, NULL, SDL_FLIP_NONE); 
 }
 
 // Nouvelle fonction pour dessiner la grille
 void draw_grid() {
-    SDL_SetRenderDrawColor(renderer, 100, 100, 150, 255);  // Couleur gris clair pour la grille
+    SDL_SetRenderDrawColor(renderer, 100, 100, 150, 255);
 
     // Dessiner les lignes verticales
     for (int x = 0; x <= WINDOW_WIDTH; x += GRID_SIZE) {
@@ -274,7 +274,7 @@ int main(int argc, char* args[]) {
                 game_over = 1;
                 SDL_Color red = {255, 0, 0, 255};
 
-                display_text("Game Over!", red, WINDOW_WIDTH / 2 - 120, WINDOW_HEIGHT / 2 - 40, 128); // Ajuster la position pour le texte plus grand
+                display_text("Game Over!", red, WINDOW_WIDTH / 2 - 120, WINDOW_HEIGHT / 2 - 40, 128);
                 SDL_RenderPresent(renderer);
                 SDL_Delay(3000);  // Pause de 3 secondes avant de quitter
             }
@@ -285,7 +285,7 @@ int main(int argc, char* args[]) {
         }
     }
 
-    printf("Game Over! Votre score: %d\n", player.length - 1);
+    printf("Game Over! Votre score: %d\n", player.length - 2);
 
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
