@@ -1,19 +1,26 @@
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
-#include <SDL2/SDL_image.h>
-#include <unistd.h>
-#include <arpa/inet.h>
+#include <stdio.h>
+#include <linux/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
 #include <string.h>
+#include <unistd.h> // pour fork et execv
+#include <arpa/inet.h>
+
+#define TAILLE_MAX_NOM 256
+#define PORT 5000
+#define NB_PLAYER 2
+
+typedef struct sockaddr sockaddr;
+typedef struct sockaddr_in sockaddr_in;
+typedef struct hostent hostent;
+typedef struct servent servent;
 
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
 #define GRID_SIZE 20
 #define GRID_WIDTH (WINDOW_WIDTH / GRID_SIZE)
 #define GRID_HEIGHT (WINDOW_HEIGHT / GRID_SIZE)
-#define PORT 5000
 
 typedef struct {
     int x;
@@ -21,111 +28,93 @@ typedef struct {
 } Position;
 
 typedef struct {
-    Position positions[1200];
-    int length;
-    int direction;
+    Position positions[1200];  // Positions du joueur (jusqu'à 100 segments)
+    int length;              // Longueur actuelle de la trace
+    int direction;           // Direction actuelle (0: droite, 1: haut, 2: gauche, 3: bas)
 } Player;
 
-Player player;
-int game_over = 0;
+int client_counter = 0; // Global counter for client connections
 
-void init_game() {
-    player.length = 2;
-    player.direction = 0;
-    for (int i = 0; i < player.length; i++) {
-        player.positions[i].x = GRID_WIDTH / 2 - i;
-        player.positions[i].y = GRID_HEIGHT / 2;
-    }
-    srand(time(0));
-}
-
-void move_player() {
-    Position next_position = player.positions[0];
-    switch (player.direction) {
-        case 0: next_position.x++; break;
-        case 1: next_position.y--; break;
-        case 2: next_position.x--; break;
-        case 3: next_position.y++; break;
-    }
-    player.length++;
-    for (int i = player.length - 1; i > 0; i--) {
-        player.positions[i] = player.positions[i - 1];
-    }
-    player.positions[0] = next_position;
-}
-
-int check_collision() {
-    if (player.positions[0].x < 0 || player.positions[0].x >= GRID_WIDTH ||
-        player.positions[0].y < 0 || player.positions[0].y >= GRID_HEIGHT) {
-        return 1;
-    }
-    for (int i = 1; i < player.length; i++) {
-        if (player.positions[0].x == player.positions[i].x &&
-            player.positions[0].y == player.positions[i].y) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-void handle_client(int client_socket) {
+void renvoi(int sock) {
     char buffer[256];
-    int length;
-    while ((length = read(client_socket, buffer, sizeof(buffer))) > 0) {
-        buffer[length] = '\0';
-        if (strcmp(buffer, "UP") == 0 && player.direction != 3) player.direction = 1;
-        else if (strcmp(buffer, "DOWN") == 0 && player.direction != 1) player.direction = 3;
-        else if (strcmp(buffer, "LEFT") == 0 && player.direction != 0) player.direction = 2;
-        else if (strcmp(buffer, "RIGHT") == 0 && player.direction != 2) player.direction = 0;
+    int longueur;
 
-        move_player();
-        if (check_collision()) {
-            game_over = 1;
-            strcpy(buffer, "GAME_OVER");
-        } else {
-            strcpy(buffer, "OK");
-        }
-        write(client_socket, buffer, strlen(buffer));
-    }
-    close(client_socket);
+    if ((longueur = read(sock, buffer, sizeof(buffer))) <= 0)
+        return;
+
+    printf("message lu : %s \n", buffer);
+
+    buffer[0] = 'R';
+    buffer[1] = 'E';
+    buffer[longueur] = '#';
+    buffer[longueur + 1] = '\0';
+
+    printf("message apres traitement : %s \n", buffer);
+
+    printf("renvoi du message traite.\n");
+
+    sleep(3);
+
+    write(sock, buffer, strlen(buffer) + 1);
+
+    printf("message envoye. \n");
+
+    return;
 }
 
-int main(int argc, char* args[]) {
-    int server_socket, client_socket;
-    struct sockaddr_in server_addr, client_addr;
-    socklen_t client_addr_len = sizeof(client_addr);
+int main(int argc, char **argv) {
+    int socket_descriptor, nouv_socket_descriptor, longueur_adresse_courante;
+    sockaddr_in adresse_locale, adresse_client_courant;
+    hostent *ptr_hote;
+    servent *ptr_service;
+    char machine[TAILLE_MAX_NOM + 1];
 
-    if ((server_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        perror("Socket creation failed");
-        exit(EXIT_FAILURE);
+    gethostname(machine, TAILLE_MAX_NOM);
+
+    if ((ptr_hote = gethostbyname(machine)) == NULL) {
+        perror("erreur : impossible de trouver le serveur a partir de son nom.");
+        exit(1);
     }
 
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(PORT);
+    bcopy((char *)ptr_hote->h_addr, (char *)&adresse_locale.sin_addr, ptr_hote->h_length);
+    adresse_locale.sin_family = ptr_hote->h_addrtype;
+    adresse_locale.sin_addr.s_addr = INADDR_ANY;
+    adresse_locale.sin_port = htons(PORT);
 
-    if (bind(server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Bind failed");
-        close(server_socket);
-        exit(EXIT_FAILURE);
+    printf("numero de port pour la connexion au serveur : %d \n", ntohs(adresse_locale.sin_port));
+
+    if ((socket_descriptor = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        perror("erreur : impossible de creer la socket de connexion avec le client.");
+        exit(1);
     }
 
-    if (listen(server_socket, 3) < 0) {
-        perror("Listen failed");
-        close(server_socket);
-        exit(EXIT_FAILURE);
+    if ((bind(socket_descriptor, (sockaddr *)(&adresse_locale), sizeof(adresse_locale))) < 0) {
+        perror("erreur : impossible de lier la socket a l'adresse de connexion.");
+        exit(1);
     }
 
-    init_game();
+    listen(socket_descriptor, 5);
 
-    while (!game_over) {
-        if ((client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_addr_len)) < 0) {
-            perror("Accept failed");
-            continue;
+     while (client_counter < NB_PLAYER) {
+        longueur_adresse_courante = sizeof(adresse_client_courant);
+
+        if ((nouv_socket_descriptor = accept(socket_descriptor, (sockaddr *)(&adresse_client_courant), &longueur_adresse_courante)) < 0) {
+            perror("erreur : impossible d'accepter la connexion avec le client.");
+            exit(1);
         }
-        handle_client(client_socket);
+
+        client_counter++;
+        printf("Client connected. Total clients: %d\n", client_counter);
+
+        if (fork() == 0) {
+            // close(socket_descriptor);
+            renvoi(nouv_socket_descriptor);
+            // close(nouv_socket_descriptor);
+            exit(0);
+        } else {
+            // close(nouv_socket_descriptor);
+        }
     }
 
-    close(server_socket);
     return 0;
 }
