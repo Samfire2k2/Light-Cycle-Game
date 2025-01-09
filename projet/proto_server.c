@@ -6,21 +6,17 @@
 #include <string.h>
 #include <unistd.h> // pour fork et execv
 #include <arpa/inet.h>
+#include <pthread.h>
+#include <time.h>
 
 #define TAILLE_MAX_NOM 256
 #define PORT 5000
-#define NB_PLAYER 2
+#define MAX_PLAYERS 2 // Set to 2 for testing; adjust as needed
 
 typedef struct sockaddr sockaddr;
 typedef struct sockaddr_in sockaddr_in;
 typedef struct hostent hostent;
 typedef struct servent servent;
-
-#define WINDOW_WIDTH 800
-#define WINDOW_HEIGHT 600
-#define GRID_SIZE 20
-#define GRID_WIDTH (WINDOW_WIDTH / GRID_SIZE)
-#define GRID_HEIGHT (WINDOW_HEIGHT / GRID_SIZE)
 
 typedef struct {
     int x;
@@ -28,38 +24,88 @@ typedef struct {
 } Position;
 
 typedef struct {
-    Position positions[1200];  // Positions du joueur (jusqu'à 100 segments)
+    Position positions[1200];  // Positions des joueur (jusqu'à 1200 segments)
     int length;              // Longueur actuelle de la trace
     int direction;           // Direction actuelle (0: droite, 1: haut, 2: gauche, 3: bas)
+    int socket;
 } Player;
 
+Player players[MAX_PLAYERS]; // Array to store players
 int client_counter = 0; // Global counter for client connections
+pthread_mutex_t counter_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex for thread-safe counter increment
 
-void renvoi(int sock) {
+void init_player(Player* player, int socket) {
+    player->length = 2;
+    player->direction = 0;
+    player->socket = socket;
+    for (int i = 0; i < player->length; i++) {
+        player->positions[i].x = i;
+        player->positions[i].y = 0;
+    }
+}
+
+typedef struct {
+    int sock;
+    int player_index;
+} ThreadArgs;
+
+void* handle_client(void* arg) {
+    ThreadArgs* args = (ThreadArgs*)arg;
+    int sock = args->sock;
+    int player_index = args->player_index;
+    free(arg); // Free the allocated memory for the socket descriptor
+    Player* player = &players[player_index]; // Get the player for this client
+
     char buffer[256];
     int longueur;
 
-    if ((longueur = read(sock, buffer, sizeof(buffer))) <= 0)
-        return;
+    while ((longueur = read(sock, buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[longueur] = '\0';
+        printf("Message from client %d: %s\n", player_index, buffer);
 
-    printf("message lu : %s \n", buffer);
+        // Update player direction based on received message
+        if (strcmp(buffer, "UP") == 0) player->direction = 1;
+        else if (strcmp(buffer, "DOWN") == 0) player->direction = 3;
+        else if (strcmp(buffer, "LEFT") == 0) player->direction = 2;
+        else if (strcmp(buffer, "RIGHT") == 0) player->direction = 0;
+    }
 
-    buffer[0] = 'R';
-    buffer[1] = 'E';
-    buffer[longueur] = '#';
-    buffer[longueur + 1] = '\0';
+    close(sock); // Close the client socket
+    return NULL;
+}
 
-    printf("message apres traitement : %s \n", buffer);
+void* game_loop(void* arg) {
+    while (1) {
+        sleep(1); // Wait for 1 second
 
-    printf("renvoi du message traite.\n");
+        pthread_mutex_lock(&counter_mutex);
+        for (int i = 0; i < MAX_PLAYERS; i++) {
+            Player* player = &players[i];
+            char buffer[256];
+            int longueur;
 
-    sleep(3);
+            // Request new direction from client
+            if (write(player->socket, "DIRECTION", strlen("DIRECTION")) < 0) {
+                perror("Error writing to client");
+                continue;
+            }
 
-    write(sock, buffer, strlen(buffer) + 1);
+            if ((longueur = read(player->socket, buffer, sizeof(buffer) - 1)) > 0) {
+                buffer[longueur] = '\0';
+                printf("New direction from client %d: %s\n", i, buffer);
 
-    printf("message envoye. \n");
-
-    return;
+                // Update player direction based on received message
+                if (strcmp(buffer, "UP") == 0) player->direction = 1;
+                else if (strcmp(buffer, "DOWN") == 0) player->direction = 3;
+                else if (strcmp(buffer, "LEFT") == 0) player->direction = 2;
+                else if (strcmp(buffer, "RIGHT") == 0) player->direction = 0;
+            } else {
+                perror("Error reading from client");
+            }
+        }
+        pthread_mutex_unlock(&counter_mutex);
+    }
+    return NULL;
 }
 
 int main(int argc, char **argv) {
@@ -95,7 +141,7 @@ int main(int argc, char **argv) {
 
     listen(socket_descriptor, 5);
 
-     while (client_counter < NB_PLAYER) {
+    while (1) {
         longueur_adresse_courante = sizeof(adresse_client_courant);
 
         if ((nouv_socket_descriptor = accept(socket_descriptor, (sockaddr *)(&adresse_client_courant), &longueur_adresse_courante)) < 0) {
@@ -103,18 +149,36 @@ int main(int argc, char **argv) {
             exit(1);
         }
 
+        pthread_mutex_lock(&counter_mutex);
+        if (client_counter >= MAX_PLAYERS) {
+            pthread_mutex_unlock(&counter_mutex);
+            printf("Maximum number of players reached. Connection rejected.\n");
+            close(nouv_socket_descriptor);
+            continue;
+        }
+
+        int player_index = client_counter;
+        Player* new_player = &players[player_index];
+        init_player(new_player, nouv_socket_descriptor);
         client_counter++;
         printf("Client connected. Total clients: %d\n", client_counter);
+        pthread_mutex_unlock(&counter_mutex);
 
-        if (fork() == 0) {
-            // close(socket_descriptor);
-            renvoi(nouv_socket_descriptor);
-            // close(nouv_socket_descriptor);
-            exit(0);
-        } else {
-            // close(nouv_socket_descriptor);
+        ThreadArgs* args = malloc(sizeof(ThreadArgs));
+        args->sock = nouv_socket_descriptor;
+        args->player_index = player_index;
+        pthread_t thread;
+        pthread_create(&thread, NULL, handle_client, args);
+        pthread_detach(thread);
+
+        if (client_counter == MAX_PLAYERS) {
+            // Start the game loop in a separate thread
+            pthread_t game_thread;
+            pthread_create(&game_thread, NULL, game_loop, NULL);
+            pthread_detach(game_thread);
         }
     }
 
+    close(socket_descriptor);
     return 0;
 }
