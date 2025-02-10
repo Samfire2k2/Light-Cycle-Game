@@ -9,7 +9,7 @@
 #include <time.h>
 
 #define PORT 5000
-#define MAX_PLAYERS 4
+#define MAX_PLAYERS 2
 #define GRID_WIDTH 40
 #define GRID_HEIGHT 30
 
@@ -31,6 +31,7 @@ Player players[MAX_PLAYERS];
 int client_counter = 0;
 pthread_mutex_t counter_mutex = PTHREAD_MUTEX_INITIALIZER;
 int game_started = 0;
+int game_running = 1;
 int server_socket;
 
 void init_player(Player* player, int socket, int index) {
@@ -114,11 +115,10 @@ void* handle_client(void* arg) {
     int player_index = *(int*)arg;
     free(arg);  // Libérer la mémoire allouée
     char buffer[256];
-    while (1) {
+    while (game_running) {
         int len = read(players[player_index].socket, buffer, sizeof(buffer) - 1);
         if (len > 0) {
             buffer[len] = '\0';
-            printf("Received direction from player %d: %s\n", player_index, buffer);
             if (strcmp(buffer, "UP\n") == 0 && players[player_index].direction != 3) players[player_index].direction = 1;
             if (strcmp(buffer, "DOWN\n") == 0 && players[player_index].direction != 1) players[player_index].direction = 3;
             if (strcmp(buffer, "LEFT\n") == 0 && players[player_index].direction != 0) players[player_index].direction = 2;
@@ -132,6 +132,25 @@ void* game_loop(void* arg) {
     while (client_counter < MAX_PLAYERS) {
         sleep(1);
     }
+
+    printf("Starting countdown...\n");
+    for (int i = 3; i > 0; i--) {
+        for (int p = 0; p < MAX_PLAYERS; p++) {
+            if (players[p].active) {
+                char countdown = '0' + i;
+                write(players[p].socket, &countdown, 1);
+            }
+        }
+        sleep(1);
+    }
+
+// Envoyer le signal de début
+for (int p = 0; p < MAX_PLAYERS; p++) {
+    if (players[p].active) {
+        write(players[p].socket, "S", 1);
+    }
+}
+
     game_started = 1;
     printf("Game has started!\n");
     
@@ -142,9 +161,6 @@ void* game_loop(void* arg) {
         for (int i = 0; i < MAX_PLAYERS; i++) {
             if (!players[i].active) continue;
             active_players++;
-
-            printf("Player %d before move: x=%d, y=%d, direction=%d\n",
-                   i, players[i].positions[0].x, players[i].positions[0].y, players[i].direction);
             
             for (int j = players[i].length - 1; j > 0; j--) {
                 players[i].positions[j] = players[i].positions[j - 1];
@@ -161,23 +177,34 @@ void* game_loop(void* arg) {
                 players[i].length++;
             }
 
-            printf("Player %d after move: x=%d, y=%d\n",
-                   i, players[i].positions[0].x, players[i].positions[0].y);
 
             if (check_collision(&players[i])) {
                 players[i].active = 0;
                 printf("Player %d has lost!\n", i);
             }
         }
+
+
         if (active_players <= 1) {
-            printf("Game over! Closing server.\n");
-            for (int i = 0; i < MAX_PLAYERS; i++) {
-                write(players[i].socket, "GAME_OVER", strlen("GAME_OVER"));
-                close(players[i].socket);
-            }
-            pthread_mutex_unlock(&counter_mutex);
-            close(server_socket);
-            exit(0);
+            int winner = -1;
+                for (int i = 0; i < MAX_PLAYERS; i++) {
+                    if (players[i].active) {
+                        winner = i;
+                        break;
+                    }
+                }
+                
+                printf("Game over! Player %d won!\n", winner);
+                char game_over_msg[20];
+                sprintf(game_over_msg, "GAME_OVER %d", winner);
+                
+                for (int i = 0; i < MAX_PLAYERS; i++) {
+                    write(players[i].socket, game_over_msg, strlen(game_over_msg));
+                    close(players[i].socket);
+                }
+                game_running = 0;
+                pthread_mutex_unlock(&counter_mutex);
+                return NULL;  // Sortir du thread game_loop
         }
         for (int i = 0; i < MAX_PLAYERS; i++) {
             if (players[i].active) {
@@ -188,8 +215,6 @@ void* game_loop(void* arg) {
                                        players[p].positions[0].x, players[p].positions[0].y, players[p].color);
                 }
                 buffer[offset - 1] = '\0';
-
-                printf("Data sent to player %d: %s\n", i, buffer);
 
                 write(players[i].socket, buffer, strlen(buffer));
             }
@@ -235,6 +260,12 @@ int main() {
     
     printf("All players connected. Game starting...\n");
     
-    while (1) sleep(1);
+    while (game_running) {
+        sleep(1);
+    }
+    
+    // Nettoyage
+    close(server_socket);
+    printf("Server shutting down...\n");
     return 0;
 }
