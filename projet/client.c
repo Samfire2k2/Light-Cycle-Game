@@ -11,7 +11,6 @@
 #define SERVER_PORT 5000
 #define GRID_SIZE 20
 #define MAX_LENGTH 1200
-#define MAX_PLAYERS 4
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
 
@@ -19,14 +18,7 @@ SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 TTF_Font* font = NULL;
 int running = 1;
-
-// Définition des couleurs pour chaque joueur
-const SDL_Color PLAYER_COLORS[MAX_PLAYERS] = {
-    {255, 0, 0, 255},    // Rouge
-    {0, 255, 0, 255},    // Vert
-    {0, 0, 255, 255},    // Bleu
-    {255, 255, 0, 255}   // Jaune
-};
+int MAX_PLAYERS;
 
 void draw_rect(int x, int y, SDL_Color color) {
     SDL_Rect rect = {x * GRID_SIZE, y * GRID_SIZE, GRID_SIZE, GRID_SIZE};
@@ -86,7 +78,7 @@ void draw_text(const char* text) {
     SDL_DestroyTexture(texture);
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     int client_socket;
     struct sockaddr_in server_addr;
     char buffer[4096];
@@ -101,7 +93,33 @@ int main() {
         perror("Connection failed");
         exit(EXIT_FAILURE);
     }
+    // Recevoir le nombre de joueurs du serveur
+    if (read(client_socket, &MAX_PLAYERS, sizeof(int)) < 0) {
+        perror("Failed to receive player count");
+        exit(EXIT_FAILURE);
+    }
     printf("Connected to server! Waiting for the game to start...\n");
+
+    int (*player_positions)[MAX_LENGTH][2] = malloc(MAX_PLAYERS * sizeof(*player_positions));
+    int* player_colors = malloc(MAX_PLAYERS * sizeof(int));
+    int* player_lengths = malloc(MAX_PLAYERS * sizeof(int));
+    SDL_Color* PLAYER_COLORS = malloc(MAX_PLAYERS * sizeof(SDL_Color));
+
+    if (!player_positions || !player_colors || !player_lengths || !PLAYER_COLORS) {
+        printf("Error: Memory allocation failed\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Initialiser les couleurs avec un dégradé
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        // Dégradé de couleurs
+        PLAYER_COLORS[i] = (SDL_Color){
+            255 * (i % 3 == 0),     // R
+            255 * (i % 3 == 1),     // G
+            255 * (i % 3 == 2),     // B
+            255                      // A
+        };
+    }
 
     // Initialisation SDL
     SDL_Init(SDL_INIT_VIDEO);
@@ -156,11 +174,6 @@ int main() {
         TTF_CloseFont(font);
     }
     font = TTF_OpenFont("projet/ressources/Consolas.ttf", 32);
-
-    // Initialisation des données des joueurs
-    int player_positions[MAX_PLAYERS][MAX_LENGTH][2];
-    int player_colors[MAX_PLAYERS];
-    int player_lengths[MAX_PLAYERS];
 
     // Initialisation des tableaux
     for (int i = 0; i < MAX_PLAYERS; i++) {
@@ -265,6 +278,10 @@ int main() {
     SDL_DestroyWindow(window);
     SDL_Quit();
     close(client_socket);
+    free(player_positions);
+    free(player_colors);
+    free(player_lengths);
+    free(PLAYER_COLORS);
 
     return 0;
 }

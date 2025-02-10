@@ -9,7 +9,6 @@
 #include <time.h>
 
 #define PORT 5000
-#define MAX_PLAYERS 2
 #define GRID_WIDTH 40
 #define GRID_HEIGHT 30
 
@@ -27,12 +26,14 @@ typedef struct {
     int color;
 } Player;
 
-Player players[MAX_PLAYERS];
+int MAX_PLAYERS;
+Player* players = NULL;
 int client_counter = 0;
 pthread_mutex_t counter_mutex = PTHREAD_MUTEX_INITIALIZER;
 int game_started = 0;
 int game_running = 1;
 int server_socket;
+
 
 void init_player(Player* player, int socket, int index) {
     player->length = 2;
@@ -187,24 +188,24 @@ for (int p = 0; p < MAX_PLAYERS; p++) {
 
         if (active_players <= 1) {
             int winner = -1;
-                for (int i = 0; i < MAX_PLAYERS; i++) {
-                    if (players[i].active) {
-                        winner = i;
-                        break;
-                    }
+            for (int i = 0; i < MAX_PLAYERS; i++) {
+                if (players[i].active) {
+                    winner = i;
+                    break;
                 }
-                
-                printf("Game over! Player %d won!\n", winner);
-                char game_over_msg[20];
-                sprintf(game_over_msg, "GAME_OVER %d", winner);
-                
-                for (int i = 0; i < MAX_PLAYERS; i++) {
-                    write(players[i].socket, game_over_msg, strlen(game_over_msg));
-                    close(players[i].socket);
-                }
-                game_running = 0;
-                pthread_mutex_unlock(&counter_mutex);
-                return NULL;  // Sortir du thread game_loop
+            }
+            
+            printf("Game over! Player %d won!\n", winner);
+            char game_over_msg[32];  
+            snprintf(game_over_msg, sizeof(game_over_msg), "GAME_OVER %d", winner);
+            
+            for (int i = 0; i < MAX_PLAYERS; i++) {
+                write(players[i].socket, game_over_msg, strlen(game_over_msg));
+                close(players[i].socket);
+            }
+            game_running = 0;
+            pthread_mutex_unlock(&counter_mutex);
+            return NULL;
         }
         for (int i = 0; i < MAX_PLAYERS; i++) {
             if (players[i].active) {
@@ -224,7 +225,25 @@ for (int p = 0; p < MAX_PLAYERS; p++) {
     return NULL;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+    if (argc != 2) {
+        printf("Usage: %s <nb_players>\n", argv[0]);
+        printf("Example: %s 2\n", argv[0]);
+        return 1;
+    }
+
+    MAX_PLAYERS = atoi(argv[1]);
+    if (MAX_PLAYERS < 2) {
+        printf("Error: Number of players must be greater yhan 2\n");
+        return 1;
+    }
+
+    players = (Player*)malloc(MAX_PLAYERS * sizeof(Player));
+    if (players == NULL) {
+        printf("Error: Memory allocation failed\n");
+        return 1;
+    }
+
     int client_socket;
     struct sockaddr_in server_addr, client_addr;
     socklen_t client_len = sizeof(client_addr);
@@ -245,6 +264,7 @@ int main() {
 
     while (client_counter < MAX_PLAYERS) {
         client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_len);
+        write(client_socket, &MAX_PLAYERS, sizeof(int));
         pthread_mutex_lock(&counter_mutex);
         int player_index = client_counter;
         init_player(&players[player_index], client_socket, player_index);
@@ -266,6 +286,7 @@ int main() {
     
     // Nettoyage
     close(server_socket);
+    free(players);
     printf("Server shutting down...\n");
     return 0;
 }
