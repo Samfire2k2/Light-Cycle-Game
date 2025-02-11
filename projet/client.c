@@ -7,7 +7,7 @@
 #include <SDL2/SDL_ttf.h>
 
 
-#define SERVER_IP "127.0.0.1"
+#define DEFAULT_SERVER_IP "127.0.0.1"
 #define SERVER_PORT 5000
 #define GRID_SIZE 20
 #define MAX_LENGTH 1200
@@ -82,12 +82,16 @@ int main(int argc, char *argv[]) {
     int client_socket;
     struct sockaddr_in server_addr;
     char buffer[4096];
+    const char* server_ip = DEFAULT_SERVER_IP;
+    if (argc > 1) {
+        server_ip = argv[1];
+    }
 
     // Initialisation du socket
     client_socket = socket(AF_INET, SOCK_STREAM, 0);
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(SERVER_PORT);
-    server_addr.sin_addr.s_addr = inet_addr(SERVER_IP);
+    server_addr.sin_addr.s_addr = inet_addr(server_ip);
     
     if (connect(client_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("Connection failed");
