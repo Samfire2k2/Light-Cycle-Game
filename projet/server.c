@@ -225,6 +225,53 @@ for (int p = 0; p < MAX_PLAYERS; p++) {
     return NULL;
 }
 
+void test_init_player(void) {
+    Player player;
+    init_player(&player, 1, 0);
+    
+    // Vérifier l'initialisation correcte du joueur
+    TEST_ASSERT_EQUAL(2, player.length);
+    TEST_ASSERT_EQUAL(1, player.socket);
+    TEST_ASSERT_EQUAL(1, player.active);
+    TEST_ASSERT_EQUAL(1, player.color);
+}
+
+void test_check_collision(void) {
+    Player player;
+    init_player(&player, 1, 0);
+    
+    // Test collision avec mur
+    player.positions[0].x = -1;
+    TEST_ASSERT_EQUAL(1, check_collision(&player));
+    
+    // Test collision avec soi-même
+    player.positions[0].x = 1;
+    player.positions[1] = player.positions[0];
+    TEST_ASSERT_EQUAL(1, check_collision(&player));
+}
+
+void test_game_logic(void) {
+    MAX_PLAYERS = 2;
+    players = (Player*)malloc(MAX_PLAYERS * sizeof(Player));
+    
+    init_player(&players[0], 1, 0);
+    init_player(&players[1], 2, 1);
+    
+    // Vérifier les positions initiales
+    TEST_ASSERT_EQUAL(1, players[0].positions[0].x);
+    TEST_ASSERT_EQUAL(GRID_WIDTH - 2, players[1].positions[0].x);
+    
+    free(players);
+}
+
+void setUp(void) {
+    // Initialisation avant chaque test
+}
+
+void tearDown(void) {
+    // Nettoyage après chaque test
+}
+
 int main(int argc, char *argv[]) {
     if (argc != 2) {
         printf("Usage: %s <nb_players>\n", argv[0]);

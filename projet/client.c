@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
+#include "unity.h"
 
 
 #define DEFAULT_SERVER_IP "127.0.0.1"
@@ -289,3 +290,43 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+
+// Tests des fonctions de dessin
+void test_draw_rect(void) {
+    SDL_Color color = {255, 0, 0, 255};
+    draw_rect(10, 10, color);
+    // Vérifier que la position et la couleur sont correctes
+    TEST_ASSERT_EQUAL(10 * GRID_SIZE, rect.x);
+    TEST_ASSERT_EQUAL(10 * GRID_SIZE, rect.y);
+}
+
+void test_draw_grid(void) {
+    draw_grid();
+    // Vérifier que la grille est dessinée correctement
+    TEST_ASSERT_EQUAL(50, renderer_color.r);
+    TEST_ASSERT_EQUAL(50, renderer_color.g);
+    TEST_ASSERT_EQUAL(50, renderer_color.b);
+}
+
+void test_network_connection(void) {
+    const char* server_ip = "127.0.0.1";
+    int client_socket = socket(AF_INET, SOCK_STREAM, 0);
+    TEST_ASSERT_NOT_EQUAL(-1, client_socket);
+}
+
+// Point d'entrée des tests
+void setUp(void) {
+    // Initialisation avant chaque test
+}
+
+void tearDown(void) {
+    // Nettoyage après chaque test
+}
+
+// int main(void) {
+//     UNITY_BEGIN();
+//     RUN_TEST(test_draw_rect);
+//     RUN_TEST(test_draw_grid);
+//     RUN_TEST(test_network_connection);
+//     return UNITY_END();
+// }
